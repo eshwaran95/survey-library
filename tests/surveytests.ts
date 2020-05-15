@@ -17,6 +17,7 @@ import {
   EmailValidator,
   NumericValidator,
   ExpressionValidator,
+  TextValidator,
 } from "../src/validator";
 import { JsonObject, Serializer } from "../src/jsonobject";
 import { QuestionTextModel } from "../src/question_text";
@@ -55,6 +56,7 @@ import {
   Const,
 } from "../src/expressions/expressions";
 import { ArrayChanges } from "../src/base";
+import { settings } from "../src/settings";
 
 export default QUnit.module("Survey");
 
@@ -355,6 +357,45 @@ QUnit.test("Next, Prev, IsFirst and IsLast Page and progressText", function (
     "Answered 1 question - but questions with the same name"
   );
 });
+QUnit.test(
+  "survey.progressBarType = 'questions' and non input question, bug #2108",
+  function (assert) {
+    var survey = new SurveyModel({
+      progressBarType: "questions",
+      elements: [
+        {
+          type: "text",
+          name: "q1",
+        },
+        {
+          type: "html",
+          name: "q2",
+        },
+        {
+          type: "text",
+          name: "q3",
+        },
+        {
+          type: "expression",
+          name: "q4",
+        },
+      ],
+    });
+    survey.progressBarType = "questions";
+    assert.equal(survey.getProgress(), 0, "The progress is 0");
+    assert.equal(
+      survey.progressText,
+      "Answered 0/2 questions",
+      "Questions progress indicator"
+    );
+    survey.getQuestionByName("q1").value = "Answer 1";
+    assert.equal(survey.getProgress(), 50, "The progress is 50%");
+    assert.equal(survey.progressText, "Answered 1/2 questions");
+    survey.getQuestionByName("q3").value = "Answer 3";
+    assert.equal(survey.getProgress(), 100, "The progress is 100%");
+    assert.equal(survey.progressText, "Answered 2/2 questions");
+  }
+);
 QUnit.test("Next, Prev, Next", function (assert) {
   var survey = new SurveyModel();
   survey.addPage(createPageWithQuestion("Page 1"));
@@ -1667,6 +1708,24 @@ QUnit.test("Complete trigger test", function (assert) {
   survey.nextPage();
   assert.equal(survey.state, "completed");
 });
+QUnit.test(
+  "Complete trigger test, settings.executeCompleteTriggerOnValueChanged",
+  function (assert) {
+    settings.executeCompleteTriggerOnValueChanged = true;
+    var survey = twoPageSimplestSurvey();
+    var trigger = new SurveyTriggerComplete();
+    survey.triggers.push(trigger);
+    trigger.name = "question1";
+    trigger.value = "Hello";
+
+    survey.setValue("question1", "H");
+    assert.equal(survey.state, "running");
+
+    survey.setValue("question1", "Hello");
+    assert.equal(survey.state, "completed");
+    settings.executeCompleteTriggerOnValueChanged = false;
+  }
+);
 QUnit.test("CompleteTrigger.toString()", function (assert) {
   var trigger = new SurveyTriggerComplete();
   trigger.name = "question1";
@@ -2533,6 +2592,102 @@ QUnit.test("Several questions in one row", function (assert) {
     );
     assert.equal(page.rows[i].elements[1].rightIndent, 0, "the indent is 0");
   }
+});
+QUnit.test(
+  "Rendered width with setting width in the same row, using calc",
+  function (assert) {
+    var page = new PageModel();
+    for (var i = 0; i < 5; i++) {
+      page.addNewQuestion("text", "q" + (i + 1));
+      page.questions[i].startWithNewLine = false;
+    }
+    assert.equal(
+      page.questions[1].renderWidth,
+      "20.000000%",
+      "the width is 20%"
+    );
+    page.questions[1].width = "100";
+    assert.equal(page.questions[1].renderWidth, "100px", "the width in px");
+    page.questions[1].width = "120 px";
+    assert.equal(
+      page.questions[1].renderWidth,
+      "120 px",
+      "the width is not changed"
+    );
+    page.questions[1].width = "10%";
+    page.questions[2].width = "120";
+    assert.equal(
+      page.questions[0].renderWidth,
+      "calc((100% - 10% - 120px)/3)",
+      "Use calc() function"
+    );
+    page.questions[3].visible = false;
+    page.questions[4].visible = false;
+    assert.equal(
+      page.questions[0].renderWidth,
+      "calc(100% - 10% - 120px)",
+      "Do not calc on 1"
+    );
+  }
+);
+QUnit.test("Rendered width when all widths for questions are set", function (
+  assert
+) {
+  var page = new PageModel();
+  page.addNewQuestion("text", "q1");
+  var panel = page.addNewPanel("panel1");
+  panel.startWithNewLine = false;
+  panel.addNewQuestion("text", "q2");
+  page.elements[0].width = "20em";
+  assert.equal(page.elements[0].renderWidth, "20em", "q1.renderedWidth");
+  assert.equal(
+    panel.renderWidth,
+    "calc(100% - 20em)",
+    "panel1.renderedWidth, calculated"
+  );
+  panel.width = "calc(100% - 40px)";
+  assert.equal(
+    panel.renderWidth,
+    "calc(100% - 40px)",
+    "panel1.renderedWidth, from width"
+  );
+});
+QUnit.test("panel.rederWidth, load from JSON", function (assert) {
+  var survey = new SurveyModel({
+    elements: [
+      {
+        type: "text",
+        name: "q1",
+        width: "120px",
+      },
+      {
+        type: "panel",
+        name: "panel1",
+        width: "calc(90% - 130px)",
+        startWithNewLine: false,
+        elements: [
+          {
+            type: "text",
+            name: "q2",
+          },
+        ],
+      },
+    ],
+  });
+  survey.currentPage.onFirstRendering();
+  var q1 = survey.getQuestionByName("q1");
+  var panel1 = <PanelModel>survey.getPanelByName("panel1");
+  assert.equal(q1.renderWidth, "120px", "question.renderWidth is fine");
+  assert.equal(
+    panel1.width,
+    "calc(90% - 130px)",
+    "panel1.width loaded correctly"
+  );
+  assert.equal(
+    panel1.renderWidth,
+    "calc(90% - 130px)",
+    "panel.renderWidth is fine"
+  );
 });
 QUnit.test(
   "Render width should work for strings only - https://surveyjs.answerdesk.io/ticket/details/T2273",
@@ -5322,6 +5477,60 @@ QUnit.test(
   }
 );
 
+QUnit.test("survey.isSinglePage revert and other value", function (assert) {
+  var survey = new SurveyModel({
+    storeOthersAsComment: false,
+    elements: [
+      {
+        type: "checkbox",
+        name: "q1",
+        hasOther: true,
+        choices: [1, 2],
+      },
+    ],
+  });
+  var question = <QuestionCheckboxModel>survey.getQuestionByName("q1");
+  question.value = "other";
+  question.comment = "other2";
+  survey.isSinglePage = true;
+  assert.equal(
+    survey.storeOthersAsComment,
+    false,
+    "Keep storeOthersAsComment false"
+  );
+  assert.equal(survey.getValue("q1"), "other2");
+  question = <QuestionCheckboxModel>survey.getQuestionByName("q1");
+  assert.deepEqual(question.value, ["other2"], "question value");
+  assert.deepEqual(question.renderedValue, ["other"], "question renderedValue");
+  assert.deepEqual(question.comment, "other2", "question comment");
+  assert.deepEqual(survey.getValue("q1"), ["other2"], "survey value");
+  assert.deepEqual(survey.getComment("q1"), "", "survey comment");
+});
+
+QUnit.test(
+  "survey.storeOthersAsComment add checkbox question from code with preset value",
+  function (assert) {
+    var survey = new SurveyModel({
+      storeOthersAsComment: false,
+      elements: [{ type: "text", name: "q2" }],
+    });
+    survey.setValue("q1", ["other2"]);
+    var question = new QuestionCheckboxModel("q1");
+    question.choices = [1, 2];
+    question.hasOther = true;
+    survey.pages[0].addQuestion(question);
+    assert.deepEqual(question.value, ["other2"], "question value");
+    assert.deepEqual(
+      question.renderedValue,
+      ["other"],
+      "question renderedValue"
+    );
+    assert.deepEqual(question.comment, "other2", "question comment");
+    assert.deepEqual(survey.getValue("q1"), ["other2"], "survey value");
+    assert.deepEqual(survey.getComment("q1"), "", "survey comment");
+  }
+);
+
 QUnit.test("survey.questionsOnPageMode", function (assert) {
   var survey = twoPageSimplestSurvey();
   var questions = survey.getAllQuestions();
@@ -6151,6 +6360,110 @@ QUnit.test("Compete trigger and goNextPageAutomatic option", function (assert) {
   assert.equal(completedCounter, 1, "The survey is completed one time");
 });
 
+QUnit.test("Compete trigger with invisible question, Bug #2098", function (
+  assert
+) {
+  var json = {
+    pages: [
+      {
+        elements: [
+          {
+            type: "text",
+            name: "age",
+            inputType: "number",
+          },
+          {
+            type: "text",
+            name: "status",
+            visible: false,
+          },
+        ],
+      },
+      {
+        elements: [
+          {
+            type: "text",
+            name: "question1",
+          },
+        ],
+      },
+      {
+        elements: [
+          {
+            type: "text",
+            name: "question2",
+          },
+        ],
+      },
+    ],
+    triggers: [
+      {
+        type: "setvalue",
+        expression: "{age} > 20",
+        setToName: "status",
+        setValue: "screenout",
+      },
+      {
+        type: "complete",
+        expression: "{status}='screenout'",
+      },
+    ],
+  };
+  var survey = new SurveyModel(json);
+  survey.getQuestionByName("age").value = 30;
+  survey.nextPage();
+  assert.equal(survey.state, "completed", "Survey is completed");
+});
+
+QUnit.test("Compete trigger with invisible question, #2, Bug #2098", function (
+  assert
+) {
+  var json = {
+    pages: [
+      {
+        elements: [
+          {
+            type: "text",
+            name: "age",
+            inputType: "number",
+          },
+          {
+            type: "text",
+            name: "status",
+            visible: false,
+          },
+        ],
+      },
+      {
+        elements: [
+          {
+            type: "text",
+            name: "question1",
+          },
+        ],
+      },
+      {
+        elements: [
+          {
+            type: "text",
+            name: "question2",
+          },
+        ],
+      },
+    ],
+    triggers: [
+      {
+        type: "complete",
+        expression: "{status}='screenout'",
+      },
+    ],
+  };
+  var survey = new SurveyModel(json);
+  survey.getQuestionByName("status").value = "screenout";
+  survey.nextPage();
+  assert.equal(survey.state, "completed", "Survey is completed");
+});
+
 QUnit.test("textUpdateMode=onTyping and goNextPageAutomatic option", function (
   assert
 ) {
@@ -6789,6 +7102,11 @@ QUnit.test("getPlainData", function (assert) {
   assert.equal(plainData[1].data[0].displayValue, "item1");
   assert.equal(plainData[1].data[1].value, "item2");
   assert.equal(plainData[1].data[1].displayValue, "item2");
+
+  assert.equal(plainData[2].name, "question4");
+  assert.equal(plainData[2].title, "radiogroup");
+  assert.equal(plainData[2].value, "item3");
+  assert.ok(plainData[2].isNode);
 });
 
 QUnit.test(
@@ -8038,6 +8356,69 @@ QUnit.test(
   }
 );
 
+QUnit.test(
+  "question.getPlainData - markdown processed titles - T3888 - question#getPlainData() returns markdown-rendered values, but not markdown-rendered titles",
+  function (assert) {
+    var survey = new SurveyModel();
+    var page = survey.addNewPage("Page 1");
+    var question = new QuestionRadiogroupModel("q1");
+    new JsonObject().toObject(
+      {
+        type: "radiogroup",
+        name: "q1",
+        title: "Title *marked*",
+        choices: [
+          {
+            value: "lion",
+            text: "lion *marked*",
+          },
+          {
+            value: "giraffe",
+            text: "giraffe *marked*",
+          },
+        ],
+      },
+      question
+    );
+    page.addQuestion(question);
+    survey.onTextMarkdown.add(function (survey, options) {
+      if (options.text.indexOf("*") > -1)
+        options.html = options.text.replace(/\*/g, "<>");
+    });
+
+    question.value = "giraffe";
+
+    var plainData = question.getPlainData();
+    assert.deepEqual(plainData.value, "giraffe");
+    assert.deepEqual(plainData.title, "Title <>marked<>");
+    assert.deepEqual(plainData.displayValue, "giraffe <>marked<>");
+  }
+);
+
+QUnit.test("question.getPlainData - optional question type", function (assert) {
+  var survey = new SurveyModel();
+  var page = survey.addNewPage("Page 1");
+  var question = new QuestionRadiogroupModel("q1");
+  new JsonObject().toObject(
+    {
+      type: "radiogroup",
+      name: "q1",
+      choices: [1, 2, 3],
+    },
+    question
+  );
+  page.addQuestion(question);
+  survey.data = { q1: 2 };
+
+  var plainData = question.getPlainData();
+  assert.deepEqual(plainData.name, "q1");
+  assert.deepEqual(plainData.questionType, undefined);
+
+  plainData = question.getPlainData({ includeQuestionTypes: true });
+  assert.deepEqual(plainData.name, "q1");
+  assert.deepEqual(plainData.questionType, "radiogroup");
+});
+
 QUnit.test("question.valueName is numeric, Bug# 1432", function (assert) {
   var survey = new SurveyModel({
     questions: [
@@ -8320,8 +8701,8 @@ QUnit.test("Test onValidatedErrorsOnCurrentPage event", function (assert) {
   survey.setValue("q1", "val1");
   survey.nextPage();
   assert.equal(counter, 2, "called two times");
-  assert.equal(errors.length, 1, "there is one error");
-  assert.equal(questions.length, 1, "there is one error");
+  assert.equal(errors.length, 1, "there is one error, #1");
+  assert.equal(questions.length, 1, "there is one error, #2");
 
   survey.setValue("q2", "val2");
   survey.nextPage();
@@ -8333,8 +8714,8 @@ QUnit.test("Test onValidatedErrorsOnCurrentPage event", function (assert) {
 
   survey.setValue("q3", "val3");
   assert.equal(counter, 4, "called four times");
-  assert.equal(errors.length, 1, "there is one error");
-  assert.equal(questions.length, 1, "there is one error");
+  assert.equal(errors.length, 1, "there is one error, #3");
+  assert.equal(questions.length, 1, "there is one error, #4");
 
   survey.setValue("q3", "a@b.com");
   assert.equal(counter, 5, "called five times");
@@ -8347,9 +8728,12 @@ QUnit.test("Test onValidatedErrorsOnCurrentPage event", function (assert) {
   assert.equal(questions.length, 0, "there is no errors");
 
   survey.clearValue("q3");
+  assert.equal(counter, 5, "Do not call errors validation on clearing value");
+  assert.equal(errors.length, 0, "there is no errors on clearing value");
+  survey.completeLastPage();
   assert.equal(counter, 6, "called six times");
-  assert.equal(errors.length, 1, "there is one error");
-  assert.equal(questions.length, 1, "there is one error");
+  assert.equal(errors.length, 2, "there are two errors onComplete, #5");
+  assert.equal(questions.length, 2, "there are two question onComplete, #6");
 });
 
 QUnit.test("survey.completedHtmlOnCondition", function (assert) {
@@ -9149,8 +9533,14 @@ QUnit.test(
     question.value = "";
     assert.equal(
       panelDynamic.containsErrors,
+      false,
+      "We do not show error on value change"
+    );
+    survey.completeLastPage();
+    assert.equal(
+      panelDynamic.containsErrors,
       true,
-      "The panel has errors after value changed to empty"
+      "The panel has errors after value changed to empty. Show it on next page event"
     );
   }
 );
@@ -9577,6 +9967,67 @@ QUnit.test("Survey<=Base propertyValueChanged", function (assert) {
   assert.equal(counter, 1, "callback called");
 });
 
+QUnit.test(
+  "Survey.onPropertyValueChangedCallback for validators and triggers",
+  function (assert) {
+    var json = {
+      title: "title",
+      questions: [
+        {
+          type: "text",
+          name: "q1",
+          validators: [{ type: "text", maxLength: 3 }],
+        },
+        { type: "text", name: "q2" },
+      ],
+      triggers: [
+        {
+          type: "setvalue",
+          setToName: "q1",
+          expression: "{q2}='1",
+          setValue: "2",
+        },
+      ],
+    };
+    var survey = new SurveyModel(json);
+    var counter = 0;
+    var propName = null;
+    var testOldValue = null;
+    var testNewValue = null;
+    var senderType = null;
+
+    survey.onPropertyValueChangedCallback = (
+      name: string,
+      oldValue: any,
+      newValue: any,
+      sender: any,
+      arrayChanges: ArrayChanges
+    ) => {
+      counter++;
+      propName = name;
+      testOldValue = oldValue;
+      testNewValue = newValue;
+      senderType = sender.getType();
+    };
+
+    assert.equal(counter, 0, "initial");
+
+    (<SurveyTriggerSetValue>survey.triggers[0]).setValue = "3";
+
+    assert.equal(counter, 1, "trigger: callback called");
+    assert.equal(propName, "setValue", "trigger: property name is correct");
+    assert.equal(testOldValue, "2", "trigger: oldValue is correct");
+    assert.equal(testNewValue, "3", "trigger: newValue is correct");
+    assert.equal(senderType, "setvaluetrigger", "trigger: sender is correct");
+    (<TextValidator>survey.getQuestionByName("q1").validators[0]).maxLength = 5;
+    assert.equal(counter, 2, "validator: callback called");
+    assert.equal(propName, "maxLength", "validator: property name is correct");
+    assert.equal(testOldValue, 3, "validator: oldValue is correct");
+    assert.equal(testNewValue, 5, "validator: newValue is correct");
+    assert.equal(senderType, "textvalidator", "validator: sender is correct");
+  }
+);
+
 QUnit.test("Survey questionTitleTemplate -> questionTitlePattern", function (
   assert
 ) {
@@ -9703,3 +10154,150 @@ QUnit.test("Survey logoClassNames", function (assert) {
   survey.logoPosition = "none";
   assert.equal(survey.logoClassNames, "sv_logo undefined");
 });
+QUnit.test("Survey.onQuestionCreated", function (assert) {
+  var survey = new SurveyModel();
+  survey.onQuestionCreated.add(function (sender, options) {
+    options.question.tag = "was here";
+  });
+  survey.fromJSON({
+    elements: [
+      {
+        type: "text",
+        name: "q1",
+      },
+      {
+        type: "matrixdynamic",
+        name: "q2",
+        columns: [
+          {
+            name: "col1",
+          },
+        ],
+      },
+      {
+        type: "multipletext",
+        name: "q3",
+        items: [
+          {
+            name: "item1",
+          },
+        ],
+      },
+      {
+        type: "paneldynamic",
+        name: "q4",
+        templateElements: [
+          {
+            type: "text",
+            name: "question1",
+          },
+        ],
+        panelCount: 1,
+      },
+    ],
+  });
+  assert.equal(
+    survey.getQuestionByName("q1").tag,
+    "was here",
+    "onQuestionCreated calls for a standard question"
+  );
+  assert.equal(
+    survey.getQuestionByName("q2").visibleRows[0].cells[0].question.tag,
+    "was here",
+    "onQuestionCreated calls for a matrix cell question"
+  );
+  assert.equal(
+    survey.getQuestionByName("q3").items[0].editor.tag,
+    "was here",
+    "onQuestionCreated calls for a multiple text question"
+  );
+  assert.equal(
+    survey.getQuestionByName("q4").panels[0].questions[0].tag,
+    "was here",
+    "onQuestionCreated calls for a multiple text question"
+  );
+});
+QUnit.test(
+  "Survey.checkErrorsMode=onValueChanged, some errors should be shown onNextPage only",
+  function (assert) {
+    var survey = new SurveyModel({
+      elements: [
+        {
+          type: "matrix",
+          name: "question1",
+          columns: ["Column 1", "Column 2", "Column 3"],
+          rows: ["Row 1", "Row 2"],
+          isAllRowRequired: true,
+        },
+      ],
+      checkErrorsMode: "onValueChanged",
+    });
+    var question1 = survey.getQuestionByName("question1");
+    question1.value = { "Row 1": "Column 2" };
+    assert.equal(question1.errors.length, 0, "There is no errors yet");
+    survey.completeLastPage();
+    assert.equal(
+      question1.errors.length,
+      1,
+      "There is one error, isAllRowRequried"
+    );
+    question1.value = { "Row 1": "Column 3" };
+    assert.equal(question1.errors.length, 1, "The error was not fixed");
+    question1.value = { "Row 1": "Column 3", "Row 2": "Column 3" };
+    assert.equal(question1.errors.length, 0, "The error is gone");
+  }
+);
+QUnit.test(
+  "Survey.checkErrorsMode=onValueChanged, check input date error onNextpage, Bug #2141",
+  function (assert) {
+    var survey = new SurveyModel({
+      elements: [
+        {
+          type: "text",
+          name: "birthdate",
+          isRequired: true,
+          validators: [
+            {
+              type: "expression",
+              expression: "getDate({birthdate}) < getDate('2020-01-01')",
+            },
+          ],
+          inputType: "date",
+        },
+      ],
+      checkErrorsMode: "onValueChanged",
+    });
+    var question1 = survey.getQuestionByName("birthdate");
+    question1.value = new Date("2020-01-02");
+    assert.equal(question1.errors.length, 0, "There is no errors yet");
+    survey.completeLastPage();
+    assert.equal(
+      question1.errors.length,
+      1,
+      "There is one error, birthdate is incorrect"
+    );
+    question1.value = new Date("2020-02-02");
+    assert.equal(question1.errors.length, 1, "The error was not fixed");
+    question1.value = new Date("2019-01-02");
+    assert.equal(question1.errors.length, 0, "The error is gone");
+  }
+);
+QUnit.test(
+  "dispose survey - https://github.com/surveyjs/survey-library/issues/2131",
+  function (assert) {
+    var survey = new SurveyModel({
+      elements: [
+        {
+          type: "matrix",
+          name: "question1",
+          columns: ["Column 1", "Column 2", "Column 3"],
+          rows: ["Row 1", "Row 2"],
+        },
+      ],
+    });
+    assert.equal(survey.pages.length, 1, "One page");
+    assert.equal(survey.pages[0].elements.length, 1, "One element");
+    survey.dispose();
+    assert.equal(survey.pages.length, 0, "No pages");
+  }
+);

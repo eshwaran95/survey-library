@@ -2,6 +2,7 @@ import { Serializer } from "./jsonobject";
 import { Question } from "./question";
 import { surveyLocalization } from "./surveyStrings";
 import SignaturePad from "signature_pad";
+import { QuestionFactory } from "./questionfactory";
 
 var defaultWidth = 300;
 var defaultHeight = 200;
@@ -32,9 +33,17 @@ function resizeCanvas(canvas: HTMLCanvasElement) {
 }
 
 /**
- * A Model for an question that renders empty "div" tag. It used as a base class for some custom widgets
+ * A Model for signature pad question.
  */
 export class QuestionSignaturePadModel extends Question {
+  protected getCssRoot(cssClasses: any): string {
+    var classes = super.getCssRoot(cssClasses);
+    if ("" + this.width === "300") {
+      classes += " " + cssClasses.small;
+    }
+    return classes;
+  }
+
   constructor(public name: string) {
     super(name);
   }
@@ -182,3 +191,6 @@ Serializer.addClass(
   },
   "question"
 );
+QuestionFactory.Instance.registerQuestion("signaturepad", (name) => {
+  return new QuestionSignaturePadModel(name);
+});

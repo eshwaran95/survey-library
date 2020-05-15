@@ -71,6 +71,8 @@ The SurveyJS Library is a JavaScript library that available for five platforms:
 - react
 - vue
 
+**Please note**: If you do not use any of this framework and do not use jQuery, then the right choice is [knockout](http://knockoutjs.com). It is a small library that helps creating UI with Model-View-View-Model pattern. You can include knockout script (~25k min+gz) just for SurveyJS and forget about this library existing in your application. 
+
 The library itself consists of two parts:
 
 - **Survey Model**
@@ -1024,8 +1026,6 @@ You can add prefix and change the postfix (default is dot) for this property, fo
 ### Question Required Mark
 
 Use the [survey.requiredText](https://surveyjs.io/Documentation/Library/?id=surveymodel#requiredText) property to change the required symbol. SurveyJS uses the asterisk (`*`) symbol by default. You can change it to another text or make it empty.
-
-By default question required mark renders at the end of question title: `2. What is your Name? *`. You can use [survey.questionTitlePattern](https://surveyjs.io/Documentation/Library/?id=surveymodel#questionTitlePattern) to show it at the beginning, set this property to: `requireNumTitle`, or before title: `numRequireTitle` or remove requried text completely from question title to set the property to: `numTitle`.
 
 > **Example**
 >

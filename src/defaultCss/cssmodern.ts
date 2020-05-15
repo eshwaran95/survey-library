@@ -83,6 +83,7 @@ export var modernCss = {
     footer: "sv-question__footer",
     formGroup: "sv-question__form-group",
     hasError: "",
+    disabled: "sv-question--disabled",
   },
   image: { root: "sv-image", image: "sv_image_image" },
   error: {
@@ -127,6 +128,7 @@ export var modernCss = {
   },
   boolean: {
     root: "",
+    small: "sv-row__question--small",
     item: "sv-boolean sv-item",
     control: "sv-visuallyhidden",
     itemChecked: "sv-boolean--checked",
@@ -236,6 +238,7 @@ export var modernCss = {
   },
   signaturepad: {
     root: "sv-signaturepad sjs_sp_container",
+    small: "sv-row__question--small",
     controls: "sjs_sp_controls",
     clearButton: "sjs_sp_clear",
   },

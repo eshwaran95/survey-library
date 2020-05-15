@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.7.6](https://github.com/surveyjs/survey-library/compare/v1.7.5...v1.7.6) (2020-05-12)
+
+
+### Bug Fixes
+
+* Checkbox question doesn't keep it's comment value on changing survey.isSinglePage [#2160](https://github.com/surveyjs/survey-library/issues/2160) ([977e306](https://github.com/surveyjs/survey-library/commit/977e306b46a908441214270db411ba0dbe70c276))
+
+### [1.7.5](https://github.com/surveyjs/survey-library/compare/v1.7.4...v1.7.5) (2020-05-06)
+
+### [1.7.4](https://github.com/surveyjs/survey-library/compare/v1.7.3...v1.7.4) (2020-04-29)
+
+### [1.7.3](https://github.com/surveyjs/survey-library/compare/v1.7.2...v1.7.3) (2020-04-21)
+
+
+### Bug Fixes
+
+* survey.progressBarType is "questions" calculates incorrectly if there are non input questions in survey [#2108](https://github.com/surveyjs/survey-library/issues/2108) ([9606a2c](https://github.com/surveyjs/survey-library/commit/9606a2ce4122c17dfe293634faf7f0719806203e))
+
+### [1.7.2](https://github.com/surveyjs/survey-library/compare/v1.7.1...v1.7.2) (2020-04-17)
+
+
+### Bug Fixes
+
+* Complete trigger doesn't work when invisible questions are in expression [#2098](https://github.com/surveyjs/survey-library/issues/2098) ([e192e9f](https://github.com/surveyjs/survey-library/commit/e192e9fb15b4fc589524526016edc22b3bb72e54))
+* Triggers properties are not observable/react and trigger doesn't call survey.onPropertyValueChangedCallback [#2093](https://github.com/surveyjs/survey-library/issues/2093) ([f86712f](https://github.com/surveyjs/survey-library/commit/f86712f523287360c7289ebc878d05663b638a7e))
+
 ### [1.7.1](https://github.com/surveyjs/survey-library/compare/v1.5.20...v1.7.1) (2020-04-15)
 
 ### [1.5.20](https://github.com/surveyjs/survey-library/compare/v1.5.19...v1.5.20) (2020-04-15)

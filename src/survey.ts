@@ -247,6 +247,21 @@ export class SurveyModel extends Base
     any
   > = new Event<(sender: SurveyModel, options: any) => any, any>();
   /**
+   * The event is fired on creating a new question.
+   * Unlike the onQuestionAdded event, this event calls for all question created in survey including inside: a page, panel, matrix cell, dynamic panel and multiple text.
+   * or inside a matrix cell or it can be a text question in multiple text items or inside a panel of a panel dynamic.
+   * You can use this event to set up properties to a question based on it's type for all questions, regardless where they are located, on the page or inside a matrix cell.
+   * Please note: If you want to use this event for questions loaded from JSON then you have to create survey with empty/null JSON parameter, assign the event and call survey.fromJSON(yourJSON) function.
+   * <br/> `sender` - the survey object that fires the event.
+   * <br/> `options.question` - a newly created question object.
+   * @see Question
+   * @see onQuestionAdded
+   */
+  public onQuestionCreated: Event<
+    (sender: SurveyModel, options: any) => any,
+    any
+  > = new Event<(sender: SurveyModel, options: any) => any, any>();
+  /**
    * The event is fired on adding a new question into survey.
    * <br/> `sender` - the survey object that fires the event.
    * <br/> `options.question` - a newly added question object.
@@ -255,6 +270,7 @@ export class SurveyModel extends Base
    * <br/> `options.parentPanel` - a container where a new question is located. It can be a page or panel.
    * <br/> `options.rootPanel` - typically, it is a page.
    * @see Question
+   * @see onQuestionCreated
    */
   public onQuestionAdded: Event<
     (sender: SurveyModel, options: any) => any,
@@ -865,10 +881,10 @@ export class SurveyModel extends Base
     this.createLocalizableString("completedHtml", this);
     this.createLocalizableString("completedBeforeHtml", this);
     this.createLocalizableString("loadingHtml", this);
-    this.createLocalizableString("startSurvey", this);
-    this.createLocalizableString("pagePrev", this);
-    this.createLocalizableString("pageNext", this);
-    this.createLocalizableString("complete", this);
+    this.createLocalizableString("startSurveyText", this);
+    this.createLocalizableString("pagePrevText", this);
+    this.createLocalizableString("pageNextText", this);
+    this.createLocalizableString("completeText", this);
     this.createLocalizableString("questionTitleTemplate", this, true);
 
     this.textPreProcessor = new TextPreProcessor();
@@ -1594,15 +1610,15 @@ export class SurveyModel extends Base
    */
   public get startSurveyText(): string {
     return this.getLocalizableStringText(
-      "startSurvey",
+      "startSurveyText",
       this.getLocString("startSurveyText")
     );
   }
   public set startSurveyText(newValue: string) {
-    this.setLocalizableStringText("startSurvey", newValue);
+    this.setLocalizableStringText("startSurveyText", newValue);
   }
   get locStartSurveyText(): LocalizableString {
-    return this.getLocalizableString("startSurvey");
+    return this.getLocalizableString("startSurveyText");
   }
   /**
    * Gets or sets the 'Prev' button caption.
@@ -1610,15 +1626,15 @@ export class SurveyModel extends Base
    */
   public get pagePrevText(): string {
     return this.getLocalizableStringText(
-      "pagePrev",
+      "pagePrevText",
       this.getLocString("pagePrevText")
     );
   }
   public set pagePrevText(newValue: string) {
-    this.setLocalizableStringText("pagePrev", newValue);
+    this.setLocalizableStringText("pagePrevText", newValue);
   }
   get locPagePrevText(): LocalizableString {
-    return this.getLocalizableString("pagePrev");
+    return this.getLocalizableString("pagePrevText");
   }
   /**
    * Gets or sets the 'Next' button caption.
@@ -1626,15 +1642,15 @@ export class SurveyModel extends Base
    */
   public get pageNextText(): string {
     return this.getLocalizableStringText(
-      "pageNext",
+      "pageNextText",
       this.getLocString("pageNextText")
     );
   }
   public set pageNextText(newValue: string) {
-    this.setLocalizableStringText("pageNext", newValue);
+    this.setLocalizableStringText("pageNextText", newValue);
   }
   get locPageNextText(): LocalizableString {
-    return this.getLocalizableString("pageNext");
+    return this.getLocalizableString("pageNextText");
   }
   /**
    *  Gets or sets the 'Complete' button caption.
@@ -1642,15 +1658,15 @@ export class SurveyModel extends Base
    */
   public get completeText(): string {
     return this.getLocalizableStringText(
-      "complete",
+      "completeText",
       this.getLocString("completeText")
     );
   }
   public set completeText(newValue: string) {
-    this.setLocalizableStringText("complete", newValue);
+    this.setLocalizableStringText("completeText", newValue);
   }
   get locCompleteText(): LocalizableString {
-    return this.getLocalizableString("complete");
+    return this.getLocalizableString("completeText");
   }
   /**
    * Set the pattern for question title. Default is "numTitleRequire", 1. What is your name? *,
@@ -1943,13 +1959,13 @@ export class SurveyModel extends Base
    */
   public get data(): any {
     var result: { [index: string]: any } = {};
-    this.setCalcuatedValuesIntoResult(result);
     for (var key in this.valuesHash) {
       var dataValue = this.getDataValueCore(this.valuesHash, key);
       if (dataValue !== undefined) {
         result[key] = dataValue;
       }
     }
+    this.setCalcuatedValuesIntoResult(result);
     return result;
   }
   public set data(data: any) {
@@ -1989,11 +2005,13 @@ export class SurveyModel extends Base
   public getPlainData(
     options: {
       includeEmpty?: boolean;
+      includeQuestionTypes?: boolean;
       calculations?: Array<{
         propertyName: string;
       }>;
     } = {
       includeEmpty: true,
+      includeQuestionTypes: false,
     }
   ) {
     var result: Array<any> = [];
@@ -2345,7 +2363,7 @@ export class SurveyModel extends Base
   public getProgress(): number {
     if (this.currentPage == null) return 0;
     if (this.progressBarType === "questions") {
-      var questions = this.getAllQuestions();
+      var questions = this.getQuestionsWithInput();
       var answeredQuestionsCount = questions.reduce(
         (a: number, b: Question) => a + (b.isEmpty() ? 0 : 1),
         0
@@ -2353,12 +2371,22 @@ export class SurveyModel extends Base
       return Math.ceil((answeredQuestionsCount * 100) / questions.length);
     }
     if (this.progressBarType === "correctQuestions") {
-      var questions = this.getAllQuestions();
+      var questions = this.getQuestionsWithInput();
       var correctAnswersCount = this.getCorrectedAnswerCount();
       return Math.ceil((correctAnswersCount * 100) / questions.length);
     }
     var index = this.visiblePages.indexOf(this.currentPage) + 1;
     return Math.ceil((index * 100) / this.visiblePageCount);
+  }
+  private getQuestionsWithInput(): Array<Question> {
+    var allQuestions = this.getAllQuestions();
+    var questions = new Array<Question>();
+    for (var i = 0; i < allQuestions.length; i++) {
+      if (allQuestions[i].hasInput) {
+        questions.push(allQuestions[i]);
+      }
+    }
+    return questions;
   }
   /**
    * Returns the navigation buttons (i.e., 'Prev', 'Next', or 'Complete') position.
@@ -3048,7 +3076,7 @@ export class SurveyModel extends Base
   public get progressText(): string {
     if (this.currentPage == null) return "";
     if (this.progressBarType === "questions") {
-      var questions = this.getAllQuestions();
+      var questions = this.getQuestionsWithInput();
       var answeredQuestionsCount = questions.reduce(
         (a: number, b: Question) => a + (b.isEmpty() ? 0 : 1),
         0
@@ -3059,7 +3087,7 @@ export class SurveyModel extends Base
       );
     }
     if (this.progressBarType === "correctQuestions") {
-      var questions = this.getAllQuestions();
+      var questions = this.getQuestionsWithInput();
       var correctAnswersCount = this.getCorrectedAnswerCount();
       return this.getLocString("questionsProgressText")["format"](
         correctAnswersCount,
@@ -3488,8 +3516,8 @@ export class SurveyModel extends Base
   public getAllQuestions(
     visibleOnly: boolean = false,
     includingDesignTime: boolean = false
-  ): Array<IQuestion> {
-    var result = new Array<IQuestion>();
+  ): Array<Question> {
+    var result = new Array<Question>();
     for (var i: number = 0; i < this.pages.length; i++) {
       this.pages[i].addQuestionsToList(
         result,
@@ -3582,7 +3610,7 @@ export class SurveyModel extends Base
         var question = questions[i];
         if (this.checkErrorsMode == "onValueChanged") {
           var oldErrorCount = question.errors.length;
-          question.hasErrors(true);
+          question.hasErrors(true, { isOnValueChanged: true });
           if (oldErrorCount > 0 || question.errors.length > 0) {
             this.fireValidatedErrorsOnPage(<PageModel>question.page);
           }
@@ -3632,7 +3660,7 @@ export class SurveyModel extends Base
     }
   }
   private checkOnPageTriggers() {
-    var questions = this.getCurrentPageQuestions();
+    var questions = this.getCurrentPageQuestions(true);
     var values: { [index: string]: any } = {};
     for (var i = 0; i < questions.length; i++) {
       var question = questions[i];
@@ -3641,13 +3669,15 @@ export class SurveyModel extends Base
     }
     this.checkTriggers(values, true);
   }
-  private getCurrentPageQuestions(): Array<Question> {
+  private getCurrentPageQuestions(
+    includeInvsible: boolean = false
+  ): Array<Question> {
     var result: Array<Question> = [];
     var page = this.currentPage;
     if (!page) return result;
     for (var i = 0; i < page.questions.length; i++) {
       var question = page.questions[i];
-      if (!question.visible || !question.name) continue;
+      if ((!includeInvsible && !question.visible) || !question.name) continue;
       result.push(question);
     }
     return result;
@@ -4218,6 +4248,9 @@ export class SurveyModel extends Base
     this.updateVisibleIndexes();
     this.onPanelVisibleChanged.fire(this, { panel: panel, visible: newValue });
   }
+  questionCreated(question: IQuestion): any {
+    this.onQuestionCreated.fire(this, { question: question });
+  }
   questionAdded(
     question: IQuestion,
     index: number,
@@ -4740,6 +4773,15 @@ export class SurveyModel extends Base
     this.currentPage = question.page;
     question.focus();
     return true;
+  }
+  /**
+   * Use this method to dispose survey model properly.
+   */
+  public dispose() {
+    for (var i = 0; i < this.pages.length; i++) {
+      this.pages[i].dispose();
+    }
+    this.pages.splice(0, this.pages.length);
   }
 }
 

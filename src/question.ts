@@ -55,6 +55,7 @@ export class Question extends SurveyElement
   commentChangedCallback: () => void;
   validateValueCallback: () => SurveyError;
   questionTitleTemplateCallback: () => string;
+  afterRenderQuestionCallback: (question: Question, element: any) => any;
   private locProcessedTitle: LocalizableString;
   protected isReadyValue: boolean = true;
 
@@ -287,6 +288,9 @@ export class Question extends SurveyElement
   }
   public setSurveyImpl(value: ISurveyImpl) {
     super.setSurveyImpl(value);
+    if (this.survey) {
+      this.survey.questionCreated(this);
+    }
     if (this.survey && this.survey.isDesignMode && !this.isDesignMode) {
       this.onVisibleChanged();
     }
@@ -485,8 +489,15 @@ export class Question extends SurveyElement
     return false;
   }
   public afterRenderQuestionElement(el: any) {
-    if (this.isCompositeQuestion || !this.survey) return;
+    if (!this.survey) return;
     this.survey.afterRenderQuestionInput(this, el);
+  }
+  public afterRender(el: any) {
+    if (!this.survey) return;
+    this.survey.afterRenderQuestion(this, el);
+    if (!!this.afterRenderQuestionCallback) {
+      this.afterRenderQuestionCallback(this, el);
+    }
   }
   public beforeDestoyQuestionElement(el: any) {}
   /**
@@ -1050,23 +1061,28 @@ export class Question extends SurveyElement
   public getPlainData(
     options: {
       includeEmpty?: boolean;
+      includeQuestionTypes?: boolean;
       calculations?: Array<{
         propertyName: string;
       }>;
     } = {
       includeEmpty: true,
+      includeQuestionTypes: false,
     }
   ) {
     if (options.includeEmpty || !this.isEmpty()) {
       var questionPlainData = <any>{
         name: this.name,
-        title: this.title,
+        title: this.locTitle.renderedHtml,
         value: this.value,
         displayValue: this.displayValue,
         isNode: false,
         getString: (val: any) =>
           typeof val === "object" ? JSON.stringify(val) : val,
       };
+      if (options.includeQuestionTypes === true) {
+        questionPlainData.questionType = this.getType();
+      }
       (options.calculations || []).forEach((calculation) => {
         questionPlainData[calculation.propertyName] = this[
           calculation.propertyName
@@ -1230,7 +1246,7 @@ export class Question extends SurveyElement
    */
   public hasErrors(fireCallback: boolean = true, rec: any = null): boolean {
     var oldHasErrors = this.errors.length > 0;
-    var errors = this.checkForErrors();
+    var errors = this.checkForErrors(!!rec && rec.isOnValueChanged === true);
     if (fireCallback) {
       if (!!this.survey) {
         this.survey.beforeSettingQuestionErrors(this, errors);
@@ -1281,23 +1297,25 @@ export class Question extends SurveyElement
     var index = errors.indexOf(error);
     if (index !== -1) errors.splice(index, 1);
   }
-  private checkForErrors(): Array<SurveyError> {
+  private checkForErrors(isOnValueChanged: boolean): Array<SurveyError> {
     var qErrors = new Array<SurveyError>();
     if (this.isVisible && !this.isReadOnly) {
-      this.collectErrors(qErrors);
+      this.collectErrors(qErrors, isOnValueChanged);
     }
     return qErrors;
   }
-  private collectErrors(qErrors: Array<SurveyError>) {
-    this.onCheckForErrors(qErrors);
-    if (qErrors.length == 0) {
-      var errors = this.runValidators();
-      if (errors.length > 0) {
-        //validators may change the question value.
-        qErrors.length = 0;
-        for (var i = 0; i < errors.length; i++) {
-          qErrors.push(errors[i]);
-        }
+  private collectErrors(
+    qErrors: Array<SurveyError>,
+    isOnValueChanged: boolean
+  ) {
+    this.onCheckForErrors(qErrors, isOnValueChanged);
+    if (qErrors.length > 0 || !this.canRunValidators(isOnValueChanged)) return;
+    var errors = this.runValidators();
+    if (errors.length > 0) {
+      //validators may change the question value.
+      qErrors.length = 0;
+      for (var i = 0; i < errors.length; i++) {
+        qErrors.push(errors[i]);
       }
     }
     if (this.survey && qErrors.length == 0) {
@@ -1307,12 +1325,18 @@ export class Question extends SurveyElement
       }
     }
   }
+  protected canRunValidators(isOnValueChanged: boolean): boolean {
+    return true;
+  }
   private fireSurveyValidation(): SurveyError {
     if (this.validateValueCallback) return this.validateValueCallback();
     return this.survey ? this.survey.validateQuestion(this) : null;
   }
-  protected onCheckForErrors(errors: Array<SurveyError>) {
-    if (this.hasRequiredError()) {
+  protected onCheckForErrors(
+    errors: Array<SurveyError>,
+    isOnValueChanged: boolean
+  ) {
+    if (!isOnValueChanged && this.hasRequiredError()) {
       errors.push(new AnswerRequiredError(this.requiredErrorText, this));
     }
   }
@@ -1502,6 +1526,7 @@ export class Question extends SurveyElement
   getAllValues(): any {
     return !!this.data ? this.data.getAllValues() : null;
   }
+  public dispose() {}
 }
 Serializer.addClass("question", [
   "!name",

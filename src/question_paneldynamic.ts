@@ -11,7 +11,7 @@ import {
   ITextProcessor
 } from "./base";
 import { surveyLocalization } from "./surveyStrings";
-import { ILocalizableOwner, LocalizableString } from "./localizablestring";
+import { LocalizableString } from "./localizablestring";
 import { TextPreProcessor, TextPreProcessorValue } from "./textPreProcessor";
 import { ProcessValue } from "./conditionProcessValue";
 import { Question, IConditionObject } from "./question";
@@ -1528,7 +1528,13 @@ export class QuestionPanelDynamicModel extends Question
     }
     return questionPlainData;
   }
-
+  public updateElementCss() {
+    super.updateElementCss();
+    for (var i = 0; i < this.panels.length; i++) {
+      var el = this.panels[i];
+      el.updateElementCss();
+    }
+  }
   public get progressText(): string {
     var rangeMax = this.panelCount;
     return surveyLocalization
