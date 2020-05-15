@@ -1,11 +1,9 @@
 // model
-export * from "./chunks/model";
 
 // localization
 import "./chunks/localization";
 
 // helpers
-export * from "./chunks/helpers";
 
 // css standard
 export { defaultStandardCss } from "../defaultCss/cssstandard";
